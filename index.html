@@ -130,8 +130,8 @@ input:focus,textarea:focus{outline:none;border-color:var(--acc)!important}
 .skb{width:100%;padding:10px;font-size:13px;color:var(--tx3);border:1px solid var(--bdr);border-radius:8px;margin-top:8px}
 
 /* Stars */
-.stars{display:flex;gap:3px;align-items:center;cursor:pointer}
-.stw{position:relative;cursor:pointer}
+.stars{display:flex;gap:3px;align-items:center;cursor:pointer;padding:4px 0}
+.stw{position:relative;cursor:pointer;padding:4px}
 .stv{font-size:11px;color:var(--star);font-weight:600;margin-left:3px}
 
 /* Install banner */
@@ -177,12 +177,14 @@ const I={
 };
 const pinSvg=(f,s=18)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="${f?'#f59e0b':'none'}" stroke="${f?'#f59e0b':'currentColor'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${I.pin}"/></svg>`;
 const SP='M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z';
+let _hcid=0;
 const sSvg=(t,s=12)=>{
   if(t==='f')return`<svg width="${s}" height="${s}" viewBox="0 0 24 24"><path d="${SP}" fill="var(--star)" stroke="var(--star2)" stroke-width=".5"/></svg>`;
   if(t==='e')return`<svg width="${s}" height="${s}" viewBox="0 0 24 24"><path d="${SP}" fill="var(--stare)" stroke="var(--bdr2)" stroke-width="1"/></svg>`;
-  return`<svg width="${s}" height="${s}" viewBox="0 0 24 24"><path d="${SP}" fill="var(--stare)" stroke="var(--bdr2)" stroke-width="1"/><defs><clipPath id="hc"><rect x="0" y="0" width="12" height="24"/></clipPath></defs><path d="${SP}" fill="var(--star)" clip-path="url(#hc)"/></svg>`;
+  const uid='hc'+(_hcid++);
+  return`<svg width="${s}" height="${s}" viewBox="0 0 24 24"><path d="${SP}" fill="var(--stare)" stroke="var(--bdr2)" stroke-width="1"/><defs><clipPath id="${uid}"><rect x="0" y="0" width="12" height="24"/></clipPath></defs><path d="${SP}" fill="var(--star)" clip-path="url(#${uid})"/></svg>`;
 };
-const starsHtml=(v,s=11)=>{if(!v)return'';let h='';for(let i=0;i<5;i++){if(v>=i+1)h+=sSvg('f',s);else if(v>=i+.5)h+=sSvg('h',s);else h+=sSvg('e',s);}return`<span style="display:inline-flex;gap:1px;align-items:center">${h}</span>`;};
+const starsHtml=(v,s=11)=>{if(!v)return'';_hcid=Math.floor(Math.random()*10000);let h='';for(let i=0;i<5;i++){if(v>=i+1)h+=sSvg('f',s);else if(v>=i+.5)h+=sSvg('h',s);else h+=sSvg('e',s);}return`<span style="display:inline-flex;gap:1px;align-items:center">${h}</span>`;};
 
 // DOM util
 const $=s=>document.querySelector(s);
@@ -233,17 +235,28 @@ function handleSubmit(){
 function mkStars(val,onChange,sz=20){
   const w=document.createElement('div');w.className='stars';w.style.gap='3px';
   let cur=val;
+  function getVal(i,e){
+    const r=e.currentTarget.getBoundingClientRect();
+    const cx=e.touches?e.touches[0].clientX:e.clientX;
+    const x=cx-r.left;
+    return x<r.width/2?i+.5:i+1;
+  }
   function build(disp){
     w.innerHTML='';
     for(let i=0;i<5;i++){
       const s=document.createElement('div');s.className='stw';s.style.cssText=`width:${sz}px;height:${sz}px;position:relative`;
       const filled=disp>=i+1,half=!filled&&disp>=i+.5;
       s.innerHTML=filled?sSvg('f',sz):half?sSvg('h',sz):sSvg('e',sz);
-      s.onclick=e=>{const r=s.getBoundingClientRect();const x=e.clientX-r.left;const nv=x<r.width/2?i+.5:i+1;cur=nv===cur?0:nv;onChange(cur);build(cur)};
-      s.onmouseenter=()=>build(i+1);
+      // Mouse click
+      s.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const nv=getVal(i,e);cur=nv===cur?0:nv;onChange(cur);build(cur)});
+      // Touch
+      s.addEventListener('touchend',e=>{e.preventDefault();e.stopPropagation();
+        const touch=e.changedTouches[0];const r=s.getBoundingClientRect();const x=touch.clientX-r.left;
+        const nv=x<r.width/2?i+.5:i+1;cur=nv===cur?0:nv;onChange(cur);build(cur)});
+      s.addEventListener('mouseenter',()=>build(i+1));
       w.appendChild(s);
     }
-    w.onmouseleave=()=>build(cur);
+    w.addEventListener('mouseleave',()=>build(cur));
     if(cur>0){const v=document.createElement('span');v.className='stv';v.textContent=cur;w.appendChild(v)}
   }
   build(cur);return w;
@@ -394,7 +407,7 @@ function mkCard(p){
     const pkd=document.createElement('div');pkd.className='pk';
     const rr=document.createElement('div');rr.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:10px';
     rr.appendChild(Object.assign(document.createElement('span'),{style:'font-size:11px;color:var(--tx3)',textContent:'중요도:'}));
-    rr.appendChild(mkStars(p.rating||0,v=>updP({...p,rating:v,updatedAt:Date.now()}),18));
+    rr.appendChild(mkStars(p.rating||0,v=>updP({...p,rating:v,updatedAt:Date.now()}),22));
     pkd.appendChild(rr);
     pkd.appendChild(Object.assign(document.createElement('pre'),{className:'pkpre',textContent:p.content}));
     const pa=document.createElement('div');pa.className='pka';
@@ -428,7 +441,7 @@ function mkForm(){
 
   const rr=document.createElement('div');rr.style.cssText='display:flex;align-items:center;gap:10px';
   rr.appendChild(Object.assign(document.createElement('span'),{style:'font-size:12px;color:var(--tx2);font-weight:500',textContent:'중요도'}));
-  rr.appendChild(mkStars(S.f.rating,v=>{S.f.rating=v;R()},22));
+  rr.appendChild(mkStars(S.f.rating,v=>{S.f.rating=v;R()},26));
   if(S.f.rating===0)rr.appendChild(Object.assign(document.createElement('span'),{style:'font-size:11px;color:var(--tx3)',textContent:'선택사항'}));
   fc.appendChild(rr);
 
