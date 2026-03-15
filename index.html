@@ -131,7 +131,7 @@ input:focus,textarea:focus{outline:none;border-color:var(--acc)!important}
 
 /* Stars */
 .stars{display:flex;gap:3px;align-items:center;cursor:pointer;padding:4px 0}
-.stw{position:relative;cursor:pointer;padding:4px}
+.stw{position:relative;cursor:pointer}
 .stv{font-size:11px;color:var(--star);font-weight:600;margin-left:3px}
 
 /* Install banner */
@@ -231,35 +231,69 @@ function handleSubmit(){
   resetF();
 }
 
-// Star rating
-function mkStars(val,onChange,sz=20){
-  const w=document.createElement('div');w.className='stars';w.style.gap='3px';
+// Star rating — simple tap buttons, no full re-render
+function mkStars(val,onChange,sz=24){
+  const w=document.createElement('div');w.style.cssText='display:flex;align-items:center;gap:2px;padding:4px 0';
   let cur=val;
-  function getVal(i,e){
-    const r=e.currentTarget.getBoundingClientRect();
-    const cx=e.touches?e.touches[0].clientX:e.clientX;
-    const x=cx-r.left;
-    return x<r.width/2?i+.5:i+1;
-  }
-  function build(disp){
+  function build(){
     w.innerHTML='';
     for(let i=0;i<5;i++){
-      const s=document.createElement('div');s.className='stw';s.style.cssText=`width:${sz}px;height:${sz}px;position:relative`;
-      const filled=disp>=i+1,half=!filled&&disp>=i+.5;
-      s.innerHTML=filled?sSvg('f',sz):half?sSvg('h',sz):sSvg('e',sz);
-      // Mouse click
-      s.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const nv=getVal(i,e);cur=nv===cur?0:nv;onChange(cur);build(cur)});
-      // Touch
-      s.addEventListener('touchend',e=>{e.preventDefault();e.stopPropagation();
-        const touch=e.changedTouches[0];const r=s.getBoundingClientRect();const x=touch.clientX-r.left;
-        const nv=x<r.width/2?i+.5:i+1;cur=nv===cur?0:nv;onChange(cur);build(cur)});
-      s.addEventListener('mouseenter',()=>build(i+1));
-      w.appendChild(s);
+      // Left half (0.5)
+      const lBtn=document.createElement('button');
+      lBtn.type='button';
+      lBtn.style.cssText=`width:${sz/2}px;height:${sz+8}px;padding:0;margin:0;border:none;background:none;cursor:pointer;display:flex;align-items:center;overflow:hidden;-webkit-tap-highlight-color:transparent`;
+      const lSvg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+      lSvg.setAttribute('width',sz);lSvg.setAttribute('height',sz);lSvg.setAttribute('viewBox','0 0 24 24');
+      lSvg.style.cssText=`flex-shrink:0;pointer-events:none`;
+      const filled=cur>=i+1,half=!filled&&cur>=i+0.5;
+      if(filled||half){
+        const p1=document.createElementNS('http://www.w3.org/2000/svg','path');
+        p1.setAttribute('d',SP);p1.setAttribute('fill','#facc15');p1.setAttribute('stroke','#eab308');p1.setAttribute('stroke-width','0.5');
+        lSvg.appendChild(p1);
+      }
+      if(!filled&&!half){
+        const p2=document.createElementNS('http://www.w3.org/2000/svg','path');
+        p2.setAttribute('d',SP);p2.setAttribute('fill','#1e293b');p2.setAttribute('stroke','#334155');p2.setAttribute('stroke-width','1');
+        lSvg.appendChild(p2);
+      }
+      if(half){
+        // Show full yellow star clipped to left half is already done above
+        // But we need to show right half as empty - we'll handle in rBtn
+      }
+      lBtn.appendChild(lSvg);
+      lBtn.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const nv=i+0.5;cur=nv===cur?0:nv;onChange(cur);build()});
+      w.appendChild(lBtn);
+
+      // Right half (1.0)
+      const rBtn=document.createElement('button');
+      rBtn.type='button';
+      rBtn.style.cssText=`width:${sz/2}px;height:${sz+8}px;padding:0;margin:0;border:none;background:none;cursor:pointer;display:flex;align-items:center;overflow:hidden;direction:rtl;-webkit-tap-highlight-color:transparent`;
+      const rSvg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+      rSvg.setAttribute('width',sz);rSvg.setAttribute('height',sz);rSvg.setAttribute('viewBox','0 0 24 24');
+      rSvg.style.cssText=`flex-shrink:0;pointer-events:none`;
+      if(filled){
+        const p3=document.createElementNS('http://www.w3.org/2000/svg','path');
+        p3.setAttribute('d',SP);p3.setAttribute('fill','#facc15');p3.setAttribute('stroke','#eab308');p3.setAttribute('stroke-width','0.5');
+        rSvg.appendChild(p3);
+      } else {
+        const p4=document.createElementNS('http://www.w3.org/2000/svg','path');
+        p4.setAttribute('d',SP);p4.setAttribute('fill','#1e293b');p4.setAttribute('stroke','#334155');p4.setAttribute('stroke-width','1');
+        rSvg.appendChild(p4);
+      }
+      rBtn.appendChild(rSvg);
+      rBtn.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const nv=i+1;cur=nv===cur?0:nv;onChange(cur);build()});
+      w.appendChild(rBtn);
     }
-    w.addEventListener('mouseleave',()=>build(cur));
-    if(cur>0){const v=document.createElement('span');v.className='stv';v.textContent=cur;w.appendChild(v)}
+    // Value display
+    if(cur>0){
+      const vSpan=document.createElement('span');
+      vSpan.style.cssText='font-size:12px;color:#facc15;font-weight:600;margin-left:6px';
+      vSpan.textContent=cur;
+      w.appendChild(vSpan);
+    }
   }
-  build(cur);return w;
+  build();
+  return w;
 }
 
 // Export / Import
@@ -407,7 +441,12 @@ function mkCard(p){
     const pkd=document.createElement('div');pkd.className='pk';
     const rr=document.createElement('div');rr.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:10px';
     rr.appendChild(Object.assign(document.createElement('span'),{style:'font-size:11px;color:var(--tx3)',textContent:'중요도:'}));
-    rr.appendChild(mkStars(p.rating||0,v=>updP({...p,rating:v,updatedAt:Date.now()}),22));
+    rr.appendChild(mkStars(p.rating||0,v=>{
+      p.rating=v;
+      const d=S.ps.map(x=>x.id===p.id?{...x,rating:v,updatedAt:Date.now()}:x);
+      svL(d);S.ps=d;
+      if(S.conn){shPost(S.url,{action:'update',item:{...p,rating:v,updatedAt:Date.now()}}).catch(()=>{S.sync='error'})}
+    },22));
     pkd.appendChild(rr);
     pkd.appendChild(Object.assign(document.createElement('pre'),{className:'pkpre',textContent:p.content}));
     const pa=document.createElement('div');pa.className='pka';
@@ -441,8 +480,11 @@ function mkForm(){
 
   const rr=document.createElement('div');rr.style.cssText='display:flex;align-items:center;gap:10px';
   rr.appendChild(Object.assign(document.createElement('span'),{style:'font-size:12px;color:var(--tx2);font-weight:500',textContent:'중요도'}));
-  rr.appendChild(mkStars(S.f.rating,v=>{S.f.rating=v;R()},26));
-  if(S.f.rating===0)rr.appendChild(Object.assign(document.createElement('span'),{style:'font-size:11px;color:var(--tx3)',textContent:'선택사항'}));
+  const hintSpan=document.createElement('span');
+  hintSpan.style.cssText='font-size:11px;color:var(--tx3)';
+  hintSpan.textContent=S.f.rating===0?'선택사항':'';
+  rr.appendChild(mkStars(S.f.rating,v=>{S.f.rating=v;hintSpan.textContent=v===0?'선택사항':''},26));
+  rr.appendChild(hintSpan);
   fc.appendChild(rr);
 
   const ta=document.createElement('textarea');ta.className='inp inp-m';ta.placeholder='프롬프트 내용을 붙여넣으세요...';ta.rows=6;ta.value=S.f.content;ta.oninput=e=>S.f.content=e.target.value;fc.appendChild(ta);
