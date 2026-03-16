@@ -171,7 +171,7 @@ input:focus,textarea:focus{outline:none;border-color:var(--acc)!important}
 // ⚡ Prompt Vault — PWA  
 // ================================================================
 const LS_DATA='prompt-vault-data',LS_URL='prompt-vault-api-url',LS_HIDE='prompt-vault-hide-install';
-const CATS=[{k:'여1',c:'#f472b6'},{k:'여2',c:'#a78bfa'},{k:'다수',c:'#22d3ee'},{k:'애니',c:'#34d399'},{k:'리얼',c:'#fb923c'},{k:'고퀄',c:'#facc15'}];
+const CATS=[{k:'여1',c:'#f472b6'},{k:'여2',c:'#a78bfa'},{k:'다수',c:'#22d3ee'},{k:'애니',c:'#34d399'},{k:'리얼',c:'#fb923c'},{k:'고퀄',c:'#facc15'},{k:'하드',c:'#f43f5e'}];
 const CM=Object.fromEntries(CATS.map(c=>[c.k,c]));
 const gid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const fd=ts=>new Date(ts).toLocaleDateString('ko-KR',{year:'numeric',month:'short',day:'numeric'});
@@ -533,6 +533,29 @@ function mkCard(p){
       if(S.conn){shPost(S.url,{action:'update',item:{...p,rating:v,updatedAt:Date.now()}}).catch(()=>{S.sync='error'})}
     },22));
     pkd.appendChild(rr);
+
+    // Quick category edit
+    const catRow=document.createElement('div');catRow.style.cssText='display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap';
+    catRow.appendChild(Object.assign(document.createElement('span'),{style:'font-size:11px;color:var(--tx3);flex-shrink:0',textContent:'분류:'}));
+    const curCats=p.categories||[];
+    CATS.forEach(ct=>{
+      const ac=curCats.includes(ct.k);
+      const tb=document.createElement('button');tb.type='button';
+      tb.style.cssText=`padding:3px 9px;border-radius:12px;font-size:10px;font-weight:${ac?600:500};border:1.5px solid ${ac?ct.c:'var(--bdr)'};background:${ac?ct.c+'18':'transparent'};color:${ac?ct.c:'var(--tx3)'};cursor:pointer;transition:.12s;-webkit-tap-highlight-color:transparent`;
+      tb.textContent=(ac?'✓ ':'')+ct.k;
+      tb.addEventListener('click',e=>{
+        e.preventDefault();e.stopPropagation();
+        const newCats=ac?curCats.filter(k=>k!==ct.k):[...curCats,ct.k];
+        const updated={...p,categories:newCats,updatedAt:Date.now()};
+        const d=S.ps.map(x=>x.id===p.id?updated:x);
+        svL(d);S.ps=d;
+        if(S.conn){shPost(S.url,{action:'update',item:updated}).catch(()=>{S.sync='error'})}
+        R();
+      });
+      catRow.appendChild(tb);
+    });
+    pkd.appendChild(catRow);
+
     pkd.appendChild(Object.assign(document.createElement('pre'),{className:'pkpre',textContent:p.content}));
     const pa=document.createElement('div');pa.className='pka';
     const eb=document.createElement('button');eb.className='smb';eb.innerHTML=`${ic(I.ed,13)} 수정`;
