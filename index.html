@@ -171,7 +171,7 @@ input:focus,textarea:focus{outline:none;border-color:var(--acc)!important}
 // ⚡ Prompt Vault — PWA  
 // ================================================================
 const LS_DATA='prompt-vault-data',LS_URL='prompt-vault-api-url',LS_HIDE='prompt-vault-hide-install';
-const CATS=[{k:'여1',c:'#f472b6'},{k:'여2',c:'#a78bfa'},{k:'다수',c:'#22d3ee'},{k:'애니',c:'#34d399'},{k:'리얼',c:'#fb923c'},{k:'고퀄',c:'#facc15'},{k:'하드',c:'#f43f5e'}];
+const CATS=[{k:'여1',c:'#f472b6'},{k:'여2',c:'#a78bfa'},{k:'다수',c:'#22d3ee'},{k:'애니',c:'#34d399'},{k:'리얼',c:'#fb923c'},{k:'고퀄',c:'#facc15'},{k:'하드',c:'#f43f5e'},{k:'서양',c:'#60a5fa'},{k:'한국',c:'#e879f9'},{k:'여신',c:'#fbbf24'}];
 const CM=Object.fromEntries(CATS.map(c=>[c.k,c]));
 const gid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const fd=ts=>new Date(ts).toLocaleDateString('ko-KR',{year:'numeric',month:'short',day:'numeric'});

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'prompt-vault-v5';
+const CACHE_NAME = 'prompt-vault-v6';
 const ASSETS = ['./', './manifest.json', './icon-192.svg', './icon-512.svg'];
 
 self.addEventListener('install', e => {
