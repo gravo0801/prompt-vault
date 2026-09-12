@@ -34,9 +34,18 @@ input:focus,textarea:focus{outline:none;border-color:var(--acc)!important}
 
 /* Header */
 .hd{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;gap:10px}
+.hd-main{min-width:0}
 .logo{font-size:22px;font-weight:700;letter-spacing:-.5px;background:linear-gradient(to right,#f1f5f9,#94a3b8);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.hd-sub{display:flex;align-items:center;gap:8px;margin-top:3px}
+.hd-sub{display:flex;align-items:center;gap:6px;margin-top:4px;font-size:11px;color:var(--tx3);white-space:nowrap;flex-wrap:wrap}
+.storage-health{font-weight:600}
+.storage-health.safe{color:#22c55e}.storage-health.warn{color:#facc15}.storage-health.danger{color:#fb7185}
+.hd-sync{display:flex;align-items:center;gap:6px;margin-top:3px;font-size:10px;color:var(--tx4)}
 .hd-r{display:flex;gap:6px;align-items:center;flex-shrink:0}
+
+.storage-warning{display:flex;align-items:center;gap:10px;padding:11px 13px;margin:-8px 0 16px;border-radius:10px;border:1px solid rgba(250,204,21,.35);background:rgba(250,204,21,.08);color:#fde68a;font-size:12px;line-height:1.45}
+.storage-warning.danger{border-color:rgba(251,113,133,.4);background:rgba(251,113,133,.09);color:#fecdd3}
+.storage-warning span{flex:1}
+.storage-backup{flex-shrink:0;padding:6px 10px;border-radius:7px;background:rgba(255,255,255,.1);color:inherit;font-size:11px;font-weight:600;border:1px solid currentColor}
 
 .dot{width:7px;height:7px;border-radius:50%;display:inline-block}
 .dot-ok{background:#22c55e}.dot-sync{background:var(--acc);animation:pulse 1s infinite}.dot-err{background:var(--red)}.dot-off{background:var(--tx3)}
@@ -171,6 +180,7 @@ input:focus,textarea:focus{outline:none;border-color:var(--acc)!important}
 // ⚡ Prompt Vault — PWA  
 // ================================================================
 const LS_DATA='prompt-vault-data',LS_URL='prompt-vault-api-url',LS_HIDE='prompt-vault-hide-install';
+const STORAGE_LIMIT=5*1024*1024,STORAGE_WARN=3.5*1024*1024,STORAGE_DANGER=4.5*1024*1024;
 const CATS=[{k:'여1',c:'#f472b6'},{k:'여2',c:'#a78bfa'},{k:'다수',c:'#22d3ee'},{k:'애니',c:'#34d399'},{k:'리얼',c:'#fb923c'},{k:'고퀄',c:'#facc15'},{k:'하드',c:'#f43f5e'},{k:'서양',c:'#60a5fa'},{k:'한국',c:'#e879f9'},{k:'여신',c:'#fbbf24'}];
 const CM=Object.fromEntries(CATS.map(c=>[c.k,c]));
 const gid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
@@ -237,7 +247,26 @@ const $=s=>document.querySelector(s);
 
 // Storage
 const ldL=()=>{try{return JSON.parse(localStorage.getItem(LS_DATA))||[]}catch{return[]}};
-const svL=d=>localStorage.setItem(LS_DATA,JSON.stringify(d));
+function storageBytes(){
+  let n=0;
+  try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i)||'';const v=localStorage.getItem(k)||'';n+=new Blob([k,v]).size}}catch{}
+  return n;
+}
+function storageHealth(){
+  const used=storageBytes();
+  if(used>=STORAGE_DANGER)return{used,mb:(used/1048576).toFixed(2),pct:Math.min(100,Math.round(used/STORAGE_LIMIT*100)),level:'danger',icon:'🔴',label:'위험'};
+  if(used>=STORAGE_WARN)return{used,mb:(used/1048576).toFixed(2),pct:Math.round(used/STORAGE_LIMIT*100),level:'warn',icon:'🟡',label:'주의'};
+  return{used,mb:(used/1048576).toFixed(2),pct:Math.round(used/STORAGE_LIMIT*100),level:'safe',icon:'🟢',label:'안전'};
+}
+function storageFail(e){
+  const quota=e?.name==='QuotaExceededError'||e?.name==='NS_ERROR_DOM_QUOTA_REACHED'||e?.code===22||e?.code===1014;
+  S.storageAlert=quota?'저장공간이 부족합니다. JSON 백업 후 데이터 정리가 필요합니다.':'브라우저에 저장하지 못했습니다. JSON 백업 후 다시 시도해주세요.';
+  flash(S.storageAlert);
+}
+function svL(d){
+  try{localStorage.setItem(LS_DATA,JSON.stringify(d));S.storageAlert=null;return true}
+  catch(e){storageFail(e);return false}
+}
 const gUrl=()=>localStorage.getItem(LS_URL)||'';
 const sUrl=u=>localStorage.setItem(LS_URL,u);
 const cUrl=()=>localStorage.removeItem(LS_URL);
@@ -253,18 +282,19 @@ let S={
   form:false,eid:null,peek:null,copied:null,
   f:{title:'',memo:'',content:'',categories:[],rating:0},
   menu:false,setup:false,toast:null,tt:null,
+  storageAlert:null,
   installEvt:null,hideInstall:localStorage.getItem(LS_HIDE)==='1',
 };
 
 function flash(m){clearTimeout(S.tt);S.toast=m;S.tt=setTimeout(()=>{S.toast=null;R()},2200);R()}
 
 // Data ops
-async function svAll(d){S.ps=d;svL(d);R()}
-async function addP(item){const d=[item,...S.ps];svL(d);S.ps=d;R();if(S.conn){try{await shPost(S.url,{action:'add',item});S.sync='ok'}catch{S.sync='error';flash('시트 동기화 실패 (로컬 저장됨)')}R()}}
-async function updP(item){const d=S.ps.map(p=>p.id===item.id?item:p);svL(d);S.ps=d;R();if(S.conn){try{await shPost(S.url,{action:'update',item});S.sync='ok'}catch{S.sync='error'}R()}}
-async function delP(id){const d=S.ps.filter(p=>p.id!==id);svL(d);S.ps=d;if(S.peek===id)S.peek=null;R();if(S.conn){try{await shPost(S.url,{action:'delete',id})}catch{S.sync='error';R()}}}
+function svAll(d){if(!svL(d))return false;S.ps=d;R();return true}
+function addP(item){const d=[item,...S.ps];if(!svL(d))return false;S.ps=d;R();if(S.conn)shPost(S.url,{action:'add',item}).then(()=>{S.sync='ok';R()}).catch(()=>{S.sync='error';flash('시트 동기화 실패 (로컬 저장됨)')});return true}
+function updP(item){const d=S.ps.map(p=>p.id===item.id?item:p);if(!svL(d))return false;S.ps=d;R();if(S.conn)shPost(S.url,{action:'update',item}).then(()=>{S.sync='ok';R()}).catch(()=>{S.sync='error';R()});return true}
+function delP(id){const d=S.ps.filter(p=>p.id!==id);if(!svL(d))return false;S.ps=d;if(S.peek===id)S.peek=null;R();if(S.conn)shPost(S.url,{action:'delete',id}).catch(()=>{S.sync='error';R()});return true}
 async function syncTo(){if(!S.conn)return;S.sync='syncing';R();try{await shPost(S.url,{action:'sync',items:S.ps});S.sync='ok';flash('시트 동기화 완료!')}catch{S.sync='error';flash('동기화 실패')}R()}
-async function loadSh(){if(!S.conn)return;S.sync='syncing';R();try{const d=await shLoad(S.url);const m=d.map(p=>({...p,categories:p.categories||[],favorited:p.favorited||false}));S.ps=m;svL(m);S.sync='ok';flash('시트에서 불러오기 완료!')}catch(e){S.sync='error';flash('불러오기 실패')}R()}
+async function loadSh(){if(!S.conn)return;S.sync='syncing';R();try{const d=await shLoad(S.url);const m=d.map(p=>({...p,categories:p.categories||[],favorited:p.favorited||false}));if(!svL(m)){S.sync='error';R();return}S.ps=m;S.sync='ok';flash('시트에서 불러오기 완료!')}catch(e){S.sync='error';flash('불러오기 실패')}R()}
 
 async function cpTx(id,t){try{await navigator.clipboard.writeText(t)}catch{const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();document.execCommand('copy');document.body.removeChild(a)}S.copied=id;flash('클립보드에 복사 완료!');R();setTimeout(()=>{S.copied=null;R()},1400)}
 
@@ -272,8 +302,10 @@ function resetF(){S.f={title:'',memo:'',content:'',categories:[],rating:0};S.eid
 
 function handleSubmit(){
   if(!S.f.title.trim()||!S.f.content.trim()){flash('제목과 내용을 입력해주세요');return}
-  if(S.eid){const ex=S.ps.find(p=>p.id===S.eid);updP({...ex,...S.f,updatedAt:Date.now()});flash('수정 완료! ✓')}
-  else{addP({id:gid(),...S.f,favorited:false,createdAt:Date.now(),updatedAt:Date.now()});flash(S.conn?'저장 완료! ✓ (시트+로컬)':'저장 완료! ✓')}
+  let ok;
+  if(S.eid){const ex=S.ps.find(p=>p.id===S.eid);ok=updP({...ex,...S.f,updatedAt:Date.now()});if(ok)flash('수정 완료! ✓')}
+  else{ok=addP({id:gid(),...S.f,favorited:false,createdAt:Date.now(),updatedAt:Date.now()});if(ok)flash(S.conn?'저장 완료! ✓ (시트+로컬)':'저장 완료! ✓')}
+  if(!ok)return;
   resetF();
 }
 
@@ -344,7 +376,7 @@ function mkStars(val,onChange,sz=24){
 
 // Export / Import
 function expJ(){const j=JSON.stringify(S.ps,null,2);const b=new Blob([j],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=`prompt-vault-${new Date().toISOString().slice(0,10)}.json`;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(u);flash('백업 다운로드 완료!')}
-function impJ(){const inp=document.createElement('input');inp.type='file';inp.accept='.json';inp.onchange=e=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(Array.isArray(d)&&d.length>0){const m=d.map(p=>({...p,categories:p.categories||[],favorited:p.favorited||false}));S.ps=m;svL(m);flash(m.length+'개 복원 완료!');if(S.conn)syncTo();else R()}else flash('올바른 파일이 아닙니다')}catch{flash('파싱 실패')}};r.readAsText(f)};inp.click()}
+function impJ(){const inp=document.createElement('input');inp.type='file';inp.accept='.json';inp.onchange=e=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(Array.isArray(d)&&d.length>0){const m=d.map(p=>({...p,categories:p.categories||[],favorited:p.favorited||false}));if(!svL(m))return;S.ps=m;flash(m.length+'개 복원 완료!');if(S.conn)syncTo();else R()}else flash('올바른 파일이 아닙니다')}catch{flash('파싱 실패')}};r.readAsText(f)};inp.click()}
 
 // ================================================================
 // RENDER
@@ -369,10 +401,11 @@ function R(){
 
   // Header
   const fc2=S.ps.filter(p=>p.favorited).length;
+  const sh=storageHealth();
   const dc=S.conn?(S.sync==='ok'?'dot-ok':S.sync==='syncing'?'dot-sync':'dot-err'):'dot-off';
   const dl=S.conn?'Google Sheets':'로컬 저장';
   const hd=document.createElement('div');hd.className='hd';
-  hd.innerHTML=`<div><div class="logo"><span style="color:var(--acc)">⚡</span> Prompt Vault</div><div class="hd-sub"><span style="font-size:12px;color:var(--tx3)">${S.ps.length}개 보관${fc2>0?' · ⭐ '+fc2:''}</span><span class="dot ${dc}"></span><span style="font-size:10px;color:var(--tx4)">${dl}</span></div></div>`;
+  hd.innerHTML=`<div class="hd-main"><div class="logo"><span style="color:var(--acc)">⚡</span> Prompt Vault</div><div class="hd-sub" title="브라우저 저장공간 약 ${sh.pct}% 사용"><span>${S.ps.length}개${fc2>0?' · ⭐ '+fc2:''}</span><span>·</span><span>${sh.mb} MB / 5 MB</span><span>·</span><span class="storage-health ${sh.level}">${sh.icon} ${sh.label}</span></div><div class="hd-sync"><span class="dot ${dc}"></span><span>${dl}</span></div></div>`;
   const hr=document.createElement('div');hr.className='hd-r';
 
   // Menu
@@ -399,6 +432,13 @@ function R(){
   ab.innerHTML=S.form?`${ic(I.x,15)} 닫기`:`${ic(I.pl,15)} 추가`;
   ab.onclick=()=>{if(S.form)resetF();else{S.form=true;S.menu=false;R()}};
   hr.appendChild(ab);hd.appendChild(hr);c.appendChild(hd);
+
+  if(S.storageAlert||sh.level!=='safe'){
+    const sw=document.createElement('div');sw.className='storage-warning '+(S.storageAlert||sh.level==='danger'?'danger':'');
+    const msg=S.storageAlert||(sh.level==='danger'?`저장공간을 ${sh.pct}% 사용 중입니다. 지금 JSON 백업 후 데이터를 정리해주세요.`:`저장공간을 ${sh.pct}% 사용 중입니다. 안전을 위해 JSON 백업을 권장합니다.`);
+    sw.innerHTML=`<span>${sh.level==='warn'?'⚠️':'🚨'} ${esc(msg)}</span>`;
+    const bb=document.createElement('button');bb.className='storage-backup';bb.textContent='JSON 백업';bb.onclick=expJ;sw.appendChild(bb);c.appendChild(sw);
+  }
 
   // Form
   if(S.form)c.appendChild(mkForm());
@@ -529,7 +569,7 @@ function mkCard(p){
     rr.appendChild(mkStars(p.rating||0,v=>{
       p.rating=v;
       const d=S.ps.map(x=>x.id===p.id?{...x,rating:v,updatedAt:Date.now()}:x);
-      svL(d);S.ps=d;
+      if(!svL(d))return;S.ps=d;
       if(S.conn){shPost(S.url,{action:'update',item:{...p,rating:v,updatedAt:Date.now()}}).catch(()=>{S.sync='error'})}
     },22));
     pkd.appendChild(rr);
@@ -548,7 +588,7 @@ function mkCard(p){
         const newCats=ac?curCats.filter(k=>k!==ct.k):[...curCats,ct.k];
         const updated={...p,categories:newCats,updatedAt:Date.now()};
         const d=S.ps.map(x=>x.id===p.id?updated:x);
-        svL(d);S.ps=d;
+        if(!svL(d))return;S.ps=d;
         if(S.conn){shPost(S.url,{action:'update',item:updated}).catch(()=>{S.sync='error'})}
         R();
       });
@@ -628,7 +668,7 @@ function renderSetup(app){
       const r=await fetch(url);const j=await r.json();
       if(j.success!==undefined){
         sUrl(url);S.url=url;S.conn=true;S.sync='ok';S.setup=false;
-        if(j.data&&j.data.length>0){S.ps=j.data.map(p=>({...p,categories:p.categories||[],favorited:p.favorited||false}));svL(S.ps)}
+        if(j.data&&j.data.length>0){const m=j.data.map(p=>({...p,categories:p.categories||[],favorited:p.favorited||false}));if(!svL(m)){S.sync='error';S.setup=false;R();return}S.ps=m}
         else if(S.ps.length>0)await shPost(url,{action:'sync',items:S.ps});
         flash('구글 시트 연결 완료! ✓');
       }else{ep.textContent='응답 형식 오류';ep.style.display='block'}
