@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
+<meta name="referrer" content="no-referrer">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Prompt Vault</title>
@@ -370,7 +371,7 @@
 
 <header>
   <h1>Prompt <span>Vault</span></h1>
-  <div class="stats" id="stats">0개 · 로컬 저장</div>
+  <div class="stats" id="stats" role="status" aria-live="polite">공통 자료 확인 중</div>
   <div style="display:flex; gap:8px;">
     <button id="btnAdd">+ 새 프롬프트</button>
     <button class="ghost" id="btnSync">동기화</button>
@@ -379,6 +380,7 @@
   </div>
 </header>
 
+<p id="legacyNotice" hidden style="padding:12px" role="status">이 브라우저의 이전 자료를 별도 보관했습니다. <button id="btnLegacyExport" class="secondary">이전 기기 자료 다운로드</button> 필요한 항목은 가져오기로 병합하세요.</p>
 <div class="toolbar">
   <input type="search" id="search" placeholder="프롬프트, 제목, 태그 검색...">
   <button class="secondary" id="sortLatest">최신순</button>
@@ -471,6 +473,7 @@
     <div class="image-preview-list" id="detailImages" style="margin:12px 0;"></div>
     <div style="display:flex; gap:8px;">
       <button id="btnCopyPrompt">프롬프트 복사</button>
+      <button class="secondary" id="btnDownloadPrompt">TXT 다운로드</button>
       <button class="secondary" id="btnEditFromDetail">수정</button>
       <button class="danger" id="btnDelete">삭제</button>
       <button class="ghost" id="btnCloseDetail">닫기</button>
@@ -481,35 +484,30 @@
 <!-- Sync Modal -->
 <div class="modal-overlay" id="syncModal">
   <div class="modal">
-    <h2>구글 시트 동기화</h2>
-    <p style="font-size:0.9rem; color:var(--muted); margin-top:0;">
-      PC와 폰에서 같은 프롬프트를 쓰려면 구글 시트와 연결하세요.
-    </p>
-    <div class="form-group">
-      <label>Apps Script 웹앱 URL</label>
-      <input type="text" id="syncUrl" placeholder="https://script.google.com/macros/s/.../exec">
+    <h2>공통 저장소 동기화</h2>
+    <p>조회·복사·다운로드는 모든 기기에서 연결 설정 없이 가능합니다. 접속·화면 복귀 시와 5분마다 GitHub의 최신 자료를 확인합니다.</p>
+    <p id="syncStatus" role="status" aria-live="polite"></p>
+    <button id="btnRefresh">지금 최신 자료 확인</button>
+    <hr>
+    <h3>편집 연결 (선택)</h3>
+    <p>새 자료·수정·삭제를 모든 기기에 반영하려면 소유자 GitHub 토큰으로 연결하세요. 연결 전 변경은 이 기기에서 대기하며, 연결 후 자동 저장됩니다.</p>
+    <p><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">GitHub 토큰 만들기</a>: Repository access에서 <b>prompt-vault</b>만 선택 → Repository permissions의 <b>Contents: Read and write</b>. 토큰은 현재 탭의 메모리에만 보관하며 새로 열면 다시 입력합니다. 외부 PC에서는 조회만 사용해도 됩니다.</p>
+    <label for="githubToken">GitHub 토큰</label>
+    <input type="password" id="githubToken" autocomplete="off" spellcheck="false" placeholder="github_pat_…">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0;">
+      <button id="btnConnect">연결하고 대기 변경 저장</button>
+      <button class="secondary" id="btnDisconnect">편집 연결 해제</button>
+      <button class="secondary" id="btnPendingExport">대기 변경 다운로드</button>
+      <button class="secondary" id="btnDiscardPending">대기 변경 취소</button>
     </div>
-    <div style="display:flex; gap:8px; flex-wrap:wrap; margin:12px 0;">
-      <button id="btnPull">시트에서 가져오기</button>
-      <button class="secondary" id="btnPush">시트로 보내기</button>
-      <button class="secondary" id="btnSyncBoth">양방향 동기화</button>
-    </div>
-    <details style="margin-top:16px; font-size:0.85rem;">
-      <summary style="cursor:pointer; color:var(--accent);">Apps Script 설정 방법</summary>
-      <ol style="padding-left:18px; color:var(--muted);">
-        <li>구글 시트 새로 만들기</li>
-        <li>확장 프로그램 → Apps Script</li>
-        <li>아래 코드를 붙여넣고 배포 → 웹 앱으로 배포 (액세스: 모든 사용자)</li>
-        <li>생성된 URL을 위에 붙여넣기</li>
-      </ol>
-      <pre id="scriptCode" style="background:#f5f4ef; padding:10px; border-radius:8px; font-size:0.75rem; overflow:auto; max-height:200px; white-space:pre-wrap;"></pre>
-    </details>
-    <div style="display:flex; justify-content:flex-end; margin-top:16px;">
+    <p>공통 자료는 현재 공개 GitHub 저장소에 저장됩니다. 오프라인 또는 오류 시에는 마지막 확인 자료와 대기 변경을 표시합니다. 상단 상태에서 최신 확인 여부를 확인하세요.</p>
+    <div style="display:flex;justify-content:flex-end;margin-top:16px;">
       <button class="secondary" id="btnCloseSync">닫기</button>
     </div>
   </div>
 </div>
 
+<script src="sync-core.js?v=20261117"></script>
 <script>
 const STORAGE_KEY = 'promptVault_v2';
 
@@ -547,54 +545,80 @@ function checkStorage() {
   }
 }
 
-async function load() {
-  // 1. Try to load shared prompts.json (works everywhere)
+const CACHE_KEY = 'pv-shared-cache-v1';
+const PENDING_KEY = 'pv-pending-v1';
+const LEGACY_KEY = 'pv-legacy-backup-v1';
+const store = new VaultSync.GitHubStore();
+let shared = [], pending = [], sharedSha = '', syncing = false, verifiedAt = null;
+let syncMessage = '공통 자료 확인 중';
+function localRead(key, fallback) {
+  try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch (_) { return fallback; }
+}
+function persistSync() {
   try {
-    const res = await fetch('prompts.json?t=' + Date.now());
-    if (res.ok) {
-      const remote = await res.json();
-      if (Array.isArray(remote) && remote.length > 0) {
-        prompts = remote;
-        // Also save locally as cache
-        if (storageAvailable && !memoryOnly) {
-          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(prompts)); } catch(e) {}
-        }
-        render();
-        return;
-      }
-    }
-  } catch (e) {
-    console.log('Remote prompts.json not available, falling back to local');
-  }
-
-  // 2. Fallback to localStorage
-  if (!checkStorage()) {
-    prompts = [];
-    showStorageNotice();
-    render();
-    return;
-  }
-  try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    prompts = data ? JSON.parse(data) : [];
-  } catch (e) {
-    prompts = [];
-    memoryOnly = true;
-    showStorageNotice();
-  }
+    localStorage.setItem(PENDING_KEY, JSON.stringify(pending));
+    localStorage.setItem(CACHE_KEY, JSON.stringify({data:shared, sha:sharedSha, verifiedAt}));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(prompts));
+  } catch (_) { showStorageNotice(); }
+}
+function updateSyncStatus(message) {
+  if (message) syncMessage = message;
+  const text = `${prompts.length}개 · ${syncMessage}${pending.length ? ` · 변경 ${pending.length}건 대기` : ''}`;
+  document.getElementById('stats').textContent = text;
+  document.getElementById('syncStatus').textContent = text + (verifiedAt ? ` (마지막 확인: ${new Date(verifiedAt).toLocaleString()})` : '');
+}
+function displayMerged() {
+  // Keep pending edits visible even when a conflict needs manual resolution.
+  const map = new Map(shared.map(p => [p.id,p]));
+  for (const edit of pending) { if (edit.after) map.set(edit.id,edit.after); else map.delete(edit.id); }
+  prompts = [...map.values()];
   render();
 }
-
-function save() {
-  if (storageAvailable && !memoryOnly) {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(prompts));
-    } catch (e) {
-      memoryOnly = true;
-      showStorageNotice();
-    }
+async function load() {
+  checkStorage();
+  const cached = localRead(CACHE_KEY, null);
+  try { if (cached) { shared = VaultSync.validate(cached.data); sharedSha = cached.sha || ''; verifiedAt = cached.verifiedAt; } } catch (_) {}
+  pending = localRead(PENDING_KEY, []);
+  // Preserve old device-only data before replacing the old cache. It is never silently published.
+  const legacy = localRead(STORAGE_KEY, []);
+  if (!cached && legacy.length) {
+    try { localStorage.setItem(LEGACY_KEY, JSON.stringify(legacy)); } catch (_) {}
+    document.getElementById('legacyNotice').hidden = false;
   }
-  render();
+  if (localRead(LEGACY_KEY, []).length) document.getElementById('legacyNotice').hidden = false;
+  displayMerged();
+  await refreshShared();
+}
+async function refreshShared() {
+  if (syncing) return;
+  syncing = true;
+  const visibleAtStart = JSON.parse(JSON.stringify(prompts));
+  const editsAtStart = JSON.parse(JSON.stringify(pending));
+  updateSyncStatus('최신 자료 확인 중');
+  try {
+    const remote = await store.read(sharedSha, shared);
+    if (pending.length && store.token) {
+      const edits = editsAtStart;
+      const merged = VaultSync.merge(remote.data, edits);
+      if (VaultSync.changes(remote.data, merged).length) {
+        const sha = await store.write(merged, remote.sha);
+        shared = merged; sharedSha = sha;
+      } else { shared = remote.data; sharedSha = remote.sha; }
+      pending = VaultSync.changes(visibleAtStart, prompts).map(edit => ({...edit, before:shared.find(p => p.id === edit.id)}));
+    } else { shared = remote.data; sharedSha = remote.sha; }
+    verifiedAt = new Date().toISOString();
+    syncMessage = pending.length ? (store.token ? '저장할 변경 대기' : '기기에서 대기 · 편집 연결 필요') : '최신 공통 자료';
+    displayMerged(); persistSync();
+  } catch (e) { updateSyncStatus('최신 확인/저장 실패: ' + e.message); }
+  finally {
+    syncing = false; updateSyncStatus();
+    if (store.token && JSON.stringify(visibleAtStart) !== JSON.stringify(prompts) && pending.length && !syncMessage.startsWith('최신 확인/저장 실패')) setTimeout(refreshShared, 0);
+  }
+}
+function save() {
+  pending = VaultSync.changes(shared, prompts);
+  persistSync(); render(); updateSyncStatus('이 기기 저장 · 공통 저장 대기');
+  if (store.token) refreshShared();
 }
 
 function showStorageNotice() {
@@ -603,7 +627,7 @@ function showStorageNotice() {
     notice = document.createElement('div');
     notice.id = 'storageNotice';
     notice.style.cssText = 'background:#3a2a1a;color:#fbbf24;padding:10px 16px;text-align:center;font-size:0.85rem;border-bottom:1px solid #5a3a1a;';
-    notice.innerHTML = '⚠️ 현재 환경에서는 저장이 제한됩니다 (샌드박스). 파일을 다운로드한 뒤 브라우저에서 직접 열면 로컬에 영구 저장됩니다. 지금은 세션 동안만 유지됩니다.';
+    notice.textContent = '이 브라우저에 대기 변경을 보관할 수 없습니다. 탭을 닫기 전에 내보내기로 백업하세요.';
     document.body.insertBefore(notice, document.body.firstChild);
   }
 }
@@ -692,17 +716,17 @@ function render() {
     const card = document.createElement('div');
     card.className = 'card';
     const imgHtml = (p.images && p.images[0]) 
-      ? `<img class="card-img" src="${p.images[0]}" alt="">` 
+      ? `<img class="card-img" src="${escapeHtml(p.images[0])}" alt="">`
       : '';
     const body = `
       <div class="card-body">
         <h3>${escapeHtml(p.title)}</h3>
         <div class="prompt-preview">${escapeHtml(p.prompt)}</div>
         <div class="tags">${(p.tags || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>
-        <div style="font-size:0.75rem; color:var(--muted);">${'★'.repeat(p.importance || 0)} · ${new Date(p.createdAt).toLocaleDateString()}</div>
+        <div style="font-size:0.75rem; color:var(--muted);">${'★'.repeat(Math.min(5, Math.max(0, Number(p.importance) || 0)))} · ${new Date(p.createdAt).toLocaleDateString()}</div>
         <div class="card-actions">
-          <button class="secondary" data-copy="${p.id}">복사</button>
-          <button class="secondary" data-edit="${p.id}">수정</button>
+          <button class="secondary" data-copy="${escapeHtml(p.id)}">복사</button>
+          <button class="secondary" data-edit="${escapeHtml(p.id)}">수정</button>
         </div>
       </div>
     `;
@@ -742,7 +766,7 @@ function render() {
     olderBox.style.display = 'none';
   }
 
-  document.getElementById('stats').textContent = `${prompts.length}개 · ${memoryOnly ? '세션 전용' : '로컬 저장'}`;
+  updateSyncStatus();
   renderFilters();
 }
 
@@ -752,10 +776,10 @@ document.getElementById('olderHeader').onclick = () => {
 
 function escapeHtml(s) {
   return String(s || '')
-    .replace(/&/g, '&')
-    .replace(/</g, '<')
-    .replace(/>/g, '>')
-    .replace(/"/g, '"')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
 
@@ -944,7 +968,7 @@ document.getElementById('btnSave').onclick = () => {
     }
   } else {
     prompts.push({
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       title,
       prompt: promptText,
       tags,
@@ -984,7 +1008,11 @@ function openDetail(id) {
     imgContainer.appendChild(img);
   });
   document.getElementById('btnCopyPrompt').onclick = () => {
-    navigator.clipboard.writeText(p.prompt).then(() => alert('복사되었습니다.'));
+    copyText(p.prompt).then(() => alert('복사되었습니다.'));
+  };
+  document.getElementById('btnDownloadPrompt').onclick = () => {
+    const url = URL.createObjectURL(new Blob([p.prompt], {type:'text/plain;charset=utf-8'}));
+    const a=document.createElement('a'); a.href=url; a.download=(p.title.replace(/[\\/:*?"<>|]/g,'_').slice(0,80)||'prompt')+'.txt'; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
   };
   document.getElementById('btnEditFromDetail').onclick = () => {
     document.getElementById('detailModal').classList.remove('open');
@@ -1015,10 +1043,11 @@ document.getElementById('toggleDark').onclick = () => {
 };
 
 // Restore dark preference
-if (localStorage.getItem('pv-dark') === '1') {
+if (localRead('pv-dark', null) === 1) {
   document.body.classList.add('dark');
   document.getElementById('toggleDark').textContent = '라이트';
 }
+document.getElementById('sortLatest').onclick = () => { currentSort = 'latest'; render(); };
 document.getElementById('sortOldest').onclick = () => { currentSort = 'oldest'; render(); };
 document.getElementById('sortImportant').onclick = () => { currentSort = 'important'; render(); };
 
@@ -1078,7 +1107,7 @@ document.getElementById('btnImport').onclick = () => {
             };
           });
           if (confirm(`${converted.length}개를 가져올까요? 기존 데이터에 추가됩니다.`)) {
-            prompts = [...prompts, ...converted];
+            prompts = VaultSync.validate([...new Map([...prompts, ...converted].map(p => [p.id,p])).values()]);
             save();
             alert(`${converted.length}개를 가져왔습니다.`);
           }
@@ -1094,13 +1123,22 @@ document.getElementById('btnImport').onclick = () => {
   input.click();
 };
 
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); }
+  catch (_) {
+    const field=document.createElement('textarea'); field.value=text;
+    field.style.cssText='position:fixed;top:0;left:0;opacity:0'; document.body.appendChild(field); field.select();
+    const copied=document.execCommand('copy'); field.remove();
+    if (!copied) { alert('자동 복사가 제한되었습니다. 상세 화면의 본문을 선택해 복사해 주세요.'); throw new Error('Copy unavailable'); }
+  }
+}
 // Copy from card
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-copy]');
   if (btn) {
     const id = btn.dataset.copy;
     const p = prompts.find(x => x.id === id);
-    if (p) navigator.clipboard.writeText(p.prompt).then(() => {
+    if (p) copyText(p.prompt).then(() => {
       btn.textContent = '복사됨';
       setTimeout(() => btn.textContent = '복사', 1200);
     });
@@ -1109,118 +1147,33 @@ document.addEventListener('click', (e) => {
   if (editBtn) openModal(editBtn.dataset.edit);
 });
 
-// ===== Google Sheets Sync =====
-const SYNC_KEY = 'pv-sync-url';
-
-function getSyncUrl() {
-  return localStorage.getItem(SYNC_KEY) || '';
+// Shared store controls
+function downloadJSON(data, name) {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data,null,2)], {type:'application/json'}));
+  const a = document.createElement('a'); a.href=url; a.download=name; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-function setSyncUrl(url) {
-  localStorage.setItem(SYNC_KEY, url);
-}
-
-document.getElementById('btnSync').onclick = () => {
-  document.getElementById('syncUrl').value = getSyncUrl();
-  document.getElementById('syncModal').classList.add('open');
+document.getElementById('btnSync').onclick = () => { updateSyncStatus(); document.getElementById('syncModal').classList.add('open'); };
+document.getElementById('btnCloseSync').onclick = () => document.getElementById('syncModal').classList.remove('open');
+document.getElementById('btnRefresh').onclick = refreshShared;
+document.getElementById('btnConnect').onclick = () => {
+  store.token = document.getElementById('githubToken').value.trim();
+  document.getElementById('githubToken').value = '';
+  refreshShared();
 };
-document.getElementById('btnCloseSync').onclick = () => {
-  document.getElementById('syncModal').classList.remove('open');
+document.getElementById('btnDisconnect').onclick = () => { store.token=''; updateSyncStatus('편집 연결 해제됨'); };
+document.getElementById('btnPendingExport').onclick = () => downloadJSON({pending, visiblePrompts:prompts}, 'prompt-vault-pending.json');
+document.getElementById('btnDiscardPending').onclick = () => {
+  if (syncing) return alert('동기화가 끝난 뒤 다시 시도하세요.');
+  if (!confirm('이 기기의 대기 변경을 취소하고 공통 자료를 표시할까요? 먼저 대기 변경을 다운로드할 수 있습니다.')) return;
+  pending=[]; displayMerged(); persistSync(); refreshShared();
 };
-
-document.getElementById('syncUrl').onchange = (e) => setSyncUrl(e.target.value.trim());
-
-async function callSheet(action, data) {
-  const url = getSyncUrl();
-  if (!url) { alert('먼저 Apps Script URL을 입력하세요.'); return null; }
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action, data })
-    });
-    return await res.json();
-  } catch (e) {
-    alert('연결 실패: ' + e.message);
-    return null;
-  }
-}
-
-document.getElementById('btnPull').onclick = async () => {
-  const result = await callSheet('pull');
-  if (result && Array.isArray(result.prompts)) {
-    if (confirm(`시트에서 ${result.prompts.length}개를 가져올까요? (기존 데이터에 병합)`)) {
-      const existingIds = new Set(prompts.map(p => p.id));
-      const newOnes = result.prompts.filter(p => !existingIds.has(p.id));
-      prompts = [...prompts, ...newOnes];
-      save();
-      alert(`${newOnes.length}개를 추가했습니다.`);
-    }
-  }
-};
-
-document.getElementById('btnPush').onclick = async () => {
-  const result = await callSheet('push', prompts);
-  if (result && result.ok) alert('시트로 보냈습니다.');
-};
-
-document.getElementById('btnSyncBoth').onclick = async () => {
-  const result = await callSheet('sync', prompts);
-  if (result && Array.isArray(result.prompts)) {
-    prompts = result.prompts;
-    save();
-    alert('동기화 완료');
-  }
-};
-
-// Apps Script code to show
-const APPS_SCRIPT = `function doPost(e) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  const body = JSON.parse(e.postData.contents);
-  const action = body.action;
-  const data = body.data || [];
-
-  if (action === 'pull') {
-    const rows = sheet.getDataRange().getValues();
-    const prompts = rows.slice(1).map(r => {
-      try { return JSON.parse(r[0]); } catch(e) { return null; }
-    }).filter(Boolean);
-    return ContentService.createTextOutput(JSON.stringify({ prompts }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-
-  if (action === 'push') {
-    sheet.clear();
-    sheet.appendRow(['json']);
-    data.forEach(p => sheet.appendRow([JSON.stringify(p)]));
-    return ContentService.createTextOutput(JSON.stringify({ ok: true }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-
-  if (action === 'sync') {
-    const rows = sheet.getDataRange().getValues();
-    const remote = rows.slice(1).map(r => {
-      try { return JSON.parse(r[0]); } catch(e) { return null; }
-    }).filter(Boolean);
-    const map = new Map();
-    [...remote, ...data].forEach(p => {
-      const existing = map.get(p.id);
-      if (!existing || new Date(p.updatedAt || p.createdAt) > new Date(existing.updatedAt || existing.createdAt)) {
-        map.set(p.id, p);
-      }
-    });
-    const merged = Array.from(map.values());
-    sheet.clear();
-    sheet.appendRow(['json']);
-    merged.forEach(p => sheet.appendRow([JSON.stringify(p)]));
-    return ContentService.createTextOutput(JSON.stringify({ prompts: merged }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-  return ContentService.createTextOutput(JSON.stringify({ error: 'unknown' }))
-    .setMimeType(ContentService.MimeType.JSON);
-}`;
-
-document.getElementById('scriptCode').textContent = APPS_SCRIPT;
-
+document.getElementById('btnLegacyExport').onclick = () => downloadJSON(localRead(LEGACY_KEY, []), 'prompt-vault-device-backup.json');
+setInterval(() => { if (!document.hidden) refreshShared(); }, 300000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshShared(); });
+window.addEventListener('online', refreshShared);
+window.addEventListener('beforeunload', e => { if (pending.length) { e.preventDefault(); e.returnValue=''; } });
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').then(r => r.update()).catch(() => {});
 load();
 </script>
 </body>
